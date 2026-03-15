@@ -577,6 +577,8 @@ wrap.addEventListener('touchstart',e=>{
       touchNodeId=nodeEl.dataset.id;
       const node=findNode(touchNodeId);
       if(node){nodeStartCanvasX=node.x;nodeStartCanvasY=node.y;nodeStartTouchX=t.clientX;nodeStartTouchY=t.clientY;}
+    } else {
+      touchNodeId=null;
     }
   }
   if(tl.length===2){
@@ -620,6 +622,17 @@ wrap.addEventListener('touchmove',e=>{
 
 wrap.addEventListener('touchend',e=>{
   if(touchNodeId&&touchNodeDragStarted){saveData();}
+  // If it was a tap (not a drag), fire click on the element
+  if(touchNodeId&&!touchNodeDragStarted){
+    const el=document.elementFromPoint(touchStartX,touchStartY);
+    if(el){
+      // If tapped a button inside node-actions, fire it
+      const btn=el.closest('.na');
+      if(btn){btn.click();}
+      // If tapped root node
+      else if(el.closest('.root-node')){openModal(tree);}
+    }
+  }
   touchNodeId=null;touchNodeDragStarted=false;
 },{passive:false});
 
