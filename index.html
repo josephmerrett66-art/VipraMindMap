@@ -563,6 +563,7 @@ wrap.addEventListener('touchstart',e=>{
     touchPanVx=vx;touchPanVy=vy;
     touchPanStart={x:t.clientX,y:t.clientY};
     touchNodeDragStarted=false;touchNodeId=null;
+
     if(linkModeFromId){
       const el=document.elementFromPoint(t.clientX,t.clientY);
       const nodeEl=el?.closest('.node[data-id]');
@@ -570,15 +571,16 @@ wrap.addEventListener('touchstart',e=>{
       else{cancelLinkMode();}
       return;
     }
+
     const el=document.elementFromPoint(t.clientX,t.clientY);
     const nodeEl=el?.closest('.node[data-id]');
-    const isAction=el?.closest('.na')||el?.closest('.node-actions')||el?.closest('.root-node');
-    if(nodeEl&&!isAction){
+    const isBtn=el?.closest('.na')||el?.closest('.root-node');
+
+    // Only start drag tracking if NOT on a button
+    if(nodeEl&&!isBtn){
       touchNodeId=nodeEl.dataset.id;
       const node=findNode(touchNodeId);
       if(node){nodeStartCanvasX=node.x;nodeStartCanvasY=node.y;nodeStartTouchX=t.clientX;nodeStartTouchY=t.clientY;}
-    } else {
-      touchNodeId=null;
     }
   }
   if(tl.length===2){
@@ -621,18 +623,35 @@ wrap.addEventListener('touchmove',e=>{
 },{passive:false});
 
 wrap.addEventListener('touchend',e=>{
+  const dx=Math.abs((e.changedTouches[0]?.clientX||touchStartX)-touchStartX);
+  const dy=Math.abs((e.changedTouches[0]?.clientY||touchStartY)-touchStartY);
+  const wasTap=dx<10&&dy<10&&!touchNodeDragStarted;
+
   if(touchNodeId&&touchNodeDragStarted){saveData();}
-  // If it was a tap (not a drag), fire click on the element
-  if(touchNodeId&&!touchNodeDragStarted){
+
+  if(wasTap){
+    // Find what was tapped at the original touch position
     const el=document.elementFromPoint(touchStartX,touchStartY);
     if(el){
-      // If tapped a button inside node-actions, fire it
       const btn=el.closest('.na');
-      if(btn){btn.click();}
-      // If tapped root node
-      else if(el.closest('.root-node')){openModal(tree);}
+      if(btn){
+        // Extract the onclick and run it directly
+        const onclickStr=btn.getAttribute('onclick');
+        if(onclickStr){
+          try{
+            // Create a synthetic event
+            const syntheticEvent={stopPropagation:()=>{}};
+            // Run the onclick string in window context
+            const fn=new Function('event',onclickStr);
+            fn.call(btn,syntheticEvent);
+          }catch(err){console.error(err);}
+        }
+      } else if(el.closest('.root-node')){
+        openModal(tree);
+      }
     }
   }
+
   touchNodeId=null;touchNodeDragStarted=false;
 },{passive:false});
 
