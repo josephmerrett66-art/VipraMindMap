@@ -19,11 +19,13 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);font-famil
 #cursor-ring{position:fixed;width:28px;height:28px;border:1.5px solid rgba(200,240,78,0.35);border-radius:50%;pointer-events:none;z-index:9998;transform:translate(-50%,-50%);}
 #cursor.grab{transform:translate(-50%,-50%) scale(0.5);}
 #bg-canvas{position:fixed;inset:0;pointer-events:none;z-index:0;}
-#canvas-wrap{position:fixed;inset:0;overflow:hidden;z-index:1;}
+#canvas-wrap{position:fixed;inset:52px 0 0;overflow:hidden;z-index:1;}
 #canvas{position:absolute;transform-origin:0 0;will-change:transform;}
-#lines-svg{position:absolute;top:0;left:0;pointer-events:none;overflow:visible;}
+#lines-svg{position:absolute;top:-5000px;left:-5000px;width:10000px;height:10000px;pointer-events:none;z-index:0;}
 
 .node{position:absolute;transform:translate(-50%,-50%);}
+.node.dragging{z-index:500;}
+.node.dragging .branch-node{box-shadow:0 0 0 2px var(--accent);transform:scale(1.08);}
 
 .root-node{
   width:148px;height:148px;border-radius:50%;
@@ -40,15 +42,19 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);font-famil
 .root-sub{font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.2em;color:var(--muted);text-transform:uppercase;margin-top:4px;}
 .root-add{font-family:'DM Mono',monospace;font-size:9px;color:rgba(200,240,78,0.4);margin-top:6px;letter-spacing:.1em;}
 
-.branch-wrap{position:relative;}
+.branch-wrap{position:relative;cursor:grab;}
+.branch-wrap:active{cursor:grabbing;}
 .branch-node{
-  min-width:115px;max-width:155px;
-  background:var(--surface);border:1px solid var(--border2);
+  width:140px;height:140px;
+  background:#0C0F18;border:1px solid var(--border2);
   border-radius:11px;padding:10px 13px;text-align:center;
-  transition:background .18s,border-color .18s,transform .18s;
+  transition:background .18s,border-color .18s,box-shadow .18s;
   transform-origin:center;will-change:transform;
+  position:relative;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  overflow:hidden;
 }
-.branch-node:hover{background:var(--surface2);transform:scale(1.05);}
+.branch-node:hover{background:#111520;}
 .depth-1 .branch-node{border-color:rgba(200,240,78,0.22);}
 .depth-1 .branch-node:hover{border-color:rgba(200,240,78,0.55);}
 .depth-2 .branch-node{border-color:rgba(61,158,255,0.18);}
@@ -57,7 +63,12 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);font-famil
 .depth-3 .branch-node:hover{border-color:rgba(180,100,255,0.5);}
 .depth-4 .branch-node{border-color:rgba(255,185,48,0.18);}
 .depth-4 .branch-node:hover{border-color:rgba(255,185,48,0.5);}
-.depth-5 .branch-node, .depth-6 .branch-node{border-color:rgba(61,255,180,0.15);}
+.depth-5 .branch-node,.depth-6 .branch-node{border-color:rgba(61,255,180,0.15);}
+
+/* search highlight */
+.node.search-match .branch-node{box-shadow:0 0 0 2px rgba(200,240,78,0.8)!important;border-color:var(--accent)!important;}
+.node.search-dim .branch-node{opacity:0.25;}
+.node.search-dim svg line,.node.search-dim svg path{opacity:0.1;}
 
 .b-type{display:inline-block;padding:2px 7px;border-radius:3px;font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.1em;text-transform:uppercase;margin-bottom:5px;}
 .t-idea{background:rgba(255,185,48,.12);color:#ffb930;}
@@ -74,28 +85,69 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);font-famil
 
 .node-actions{
   display:none;align-items:center;justify-content:center;gap:3px;
-  padding:6px 4px 2px;
-  border-top:1px solid var(--border);
-  margin-top:6px;
+  padding:6px 4px 2px;border-top:1px solid var(--border);margin-top:6px;
 }
 .branch-node:hover .node-actions{display:flex;}
-.branch-wrap{}
 .na{background:none;border:none;font-size:9px;font-family:'DM Mono',monospace;letter-spacing:.06em;color:var(--muted);cursor:pointer;padding:2px 6px;border-radius:10px;transition:all .15s;}
 .na:hover{background:rgba(200,240,78,.1);color:var(--accent);}
 .na.del:hover{background:rgba(255,79,94,.1);color:var(--danger);}
 
 /* HUD */
-#hud{position:fixed;top:0;left:0;right:0;height:52px;display:flex;align-items:center;padding:0 22px;background:rgba(6,8,13,.94);border-bottom:1px solid var(--border);backdrop-filter:blur(12px);z-index:100;gap:14px;}
+#hud{position:fixed;top:0;left:0;right:0;height:52px;display:flex;align-items:center;padding:0 18px;background:rgba(6,8,13,.96);border-bottom:1px solid var(--border);backdrop-filter:blur(12px);z-index:100;gap:12px;}
 .hud-logo{font-family:'Bebas Neue',sans-serif;font-size:24px;letter-spacing:.14em;color:var(--accent);}
 .hud-sub{font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.18em;color:var(--muted);text-transform:uppercase;}
-.hud-sep{width:1px;height:18px;background:var(--border2);}
-.hud-hint{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted2);letter-spacing:.04em;}
+.hud-sep{width:1px;height:18px;background:var(--border2);flex-shrink:0;}
 .hud-right{margin-left:auto;display:flex;align-items:center;gap:8px;}
-.hud-btn{display:flex;align-items:center;gap:5px;padding:6px 13px;background:transparent;border:1px solid var(--border2);border-radius:6px;font-size:10px;font-family:'DM Mono',monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);cursor:pointer;transition:all .15s;}
+.hud-btn{display:flex;align-items:center;gap:5px;padding:6px 13px;background:transparent;border:1px solid var(--border2);border-radius:6px;font-size:10px;font-family:'DM Mono',monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);cursor:pointer;transition:all .15s;white-space:nowrap;}
 .hud-btn:hover{border-color:var(--accent);color:var(--accent);}
 .zoom-val{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted2);min-width:38px;text-align:center;}
-.sdot{width:6px;height:6px;background:var(--accent);border-radius:50%;animation:sdp 2s infinite;}
+.sdot{width:6px;height:6px;background:var(--accent);border-radius:50%;animation:sdp 2s infinite;flex-shrink:0;}
 @keyframes sdp{0%,100%{box-shadow:0 0 0 0 rgba(200,240,78,.5);}50%{box-shadow:0 0 0 5px rgba(200,240,78,0);}}
+
+/* SEARCH BAR */
+#searchWrap{
+  position:relative;display:flex;align-items:center;
+}
+#searchInput{
+  background:var(--surface2);
+  border:1px solid var(--border2);
+  border-radius:6px;
+  padding:6px 12px 6px 30px;
+  font-size:11px;font-family:'DM Mono',monospace;
+  color:var(--text);outline:none;width:180px;
+  transition:border-color .15s,width .2s;
+  letter-spacing:.04em;
+}
+#searchInput:focus{border-color:var(--accent);width:220px;}
+#searchInput::placeholder{color:var(--muted2);}
+.search-icon{position:absolute;left:9px;font-size:11px;color:var(--muted);pointer-events:none;}
+#searchCount{
+  position:absolute;right:9px;
+  font-family:'DM Mono',monospace;font-size:9px;
+  color:var(--accent2);pointer-events:none;
+  display:none;
+}
+
+/* SEARCH RESULTS DROPDOWN */
+#searchResults{
+  position:absolute;top:38px;left:0;
+  background:var(--surface);border:1px solid var(--border2);
+  border-radius:8px;width:280px;
+  max-height:260px;overflow-y:auto;
+  z-index:500;display:none;
+  scrollbar-width:thin;
+}
+#searchResults.open{display:block;}
+.sr-item{
+  padding:9px 13px;cursor:pointer;
+  border-bottom:1px solid var(--border);
+  transition:background .12s;
+}
+.sr-item:last-child{border-bottom:none;}
+.sr-item:hover{background:var(--surface2);}
+.sr-label{font-size:12px;font-weight:500;color:var(--text);}
+.sr-path{font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);margin-top:2px;letter-spacing:.04em;}
+.sr-type{display:inline-block;padding:1px 5px;border-radius:2px;font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.08em;text-transform:uppercase;margin-right:5px;}
 
 /* MODAL */
 .overlay{position:fixed;inset:0;background:rgba(0,0,0,.82);backdrop-filter:blur(8px);z-index:200;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .2s;}
@@ -133,12 +185,22 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);font-famil
 <div id="hud">
   <div><div class="hud-logo">VIPRA</div><div class="hud-sub">Mind Map</div></div>
   <div class="hud-sep"></div>
-  <div class="hud-hint">Drag to pan &nbsp;·&nbsp; Scroll to zoom &nbsp;·&nbsp; Hover any node → + child / edit / del</div>
+
+  <!-- SEARCH -->
+  <div id="searchWrap">
+    <span class="search-icon">⌕</span>
+    <input id="searchInput" placeholder="Search nodes..." autocomplete="off"/>
+    <span id="searchCount"></span>
+    <div id="searchResults"></div>
+  </div>
+
   <div class="hud-right">
     <div class="sdot"></div>
     <div class="zoom-val" id="zoomVal">100%</div>
     <button class="hud-btn" onclick="resetView()">Reset</button>
     <button class="hud-btn" onclick="exportData()">↓ Export</button>
+    <button class="hud-btn" onclick="document.getElementById('importPicker').click()">↑ Import</button>
+    <input type="file" id="importPicker" accept=".json" style="display:none"/>
   </div>
 </div>
 
@@ -148,13 +210,14 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);font-famil
   </div>
 </div>
 
+<!-- NODE MODAL -->
 <div class="overlay" id="overlay">
   <div class="modal">
     <div class="modal-title" id="modalTitle">ADD NODE</div>
     <div class="modal-ctx" id="modalCtx">Child of: VIPRA</div>
     <div class="field">
       <label>Type</label>
-      <div class="type-pills" id="typePills">
+      <div class="type-pills">
         <button class="tp active" onclick="setType('idea',this)">Idea</button>
         <button class="tp" onclick="setType('note',this)">Note</button>
         <button class="tp" onclick="setType('image',this)">Image</button>
@@ -167,9 +230,21 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);font-famil
       <label>Label</label>
       <input id="mLabel" placeholder="Node label..."/>
     </div>
-    <div class="field">
+    <div class="field" id="bodyField">
       <label id="mBodyLbl">Notes</label>
       <textarea id="mBody" placeholder="Details..."></textarea>
+    </div>
+    <div class="field" id="imageField" style="display:none;">
+      <label>Image</label>
+      <div id="imgDropZone" onclick="document.getElementById('imgFilePicker').click()" style="border:1px dashed var(--border2);border-radius:8px;padding:24px;text-align:center;cursor:pointer;transition:border-color .15s;background:var(--surface2);">
+        <div id="imgPreview" style="display:none;"><img id="imgPreviewEl" style="max-width:100%;max-height:160px;border-radius:6px;object-fit:contain;" alt=""/></div>
+        <div id="imgPlaceholder">
+          <div style="font-size:22px;margin-bottom:8px;opacity:0.4;">◈</div>
+          <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);letter-spacing:.08em;">Click to choose image</div>
+          <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted2);margin-top:4px;">JPG, PNG, GIF, WEBP</div>
+        </div>
+      </div>
+      <input type="file" id="imgFilePicker" accept="image/*" style="display:none;"/>
     </div>
     <div class="modal-actions">
       <button class="btn-c" onclick="closeModal()">Cancel</button>
@@ -181,25 +256,20 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);font-famil
 <div class="toast" id="toast"></div>
 
 <script>
+// ── DATA ──────────────────────────────────────────────────────
 const SK='vipra_map_v3';
-let tree=null, selectedParentId=null, editingId=null, activeType='idea';
+let tree=null,selectedParentId=null,editingId=null,activeType='idea',pendingImageData=null;
 
 function makeId(){return '_'+Math.random().toString(36).slice(2,9);}
-
-function makeNode(label,type,x,y){
-  return{id:makeId(),label,type,body:'',children:[],x:x||0,y:y||0};
-}
-
 function d2r(d){return d*Math.PI/180;}
+function makeNode(label,type,x,y){return{id:makeId(),label,type,body:'',children:[],x:x||0,y:y||0};}
 
 function defaultTree(){
   const angles=[-90,-30,30,90,150,210];
   const labels=['Product Design','Marketing','Research','Finance','Prototype','Ideas'];
   const types=['idea','note','research','note','task','idea'];
-  return{
-    id:'root',label:'VIPRA',type:'root',body:'',children:
-    labels.map((l,i)=>makeNode(l,types[i],Math.cos(d2r(angles[i]))*270,Math.sin(d2r(angles[i]))*270))
-  };
+  return{id:'root',label:'VIPRA',type:'root',body:'',children:
+    labels.map((l,i)=>makeNode(l,types[i],Math.cos(d2r(angles[i]))*270,Math.sin(d2r(angles[i]))*270))};
 }
 
 function loadData(){
@@ -214,21 +284,11 @@ function findNode(id,n){
   for(const c of n.children||[]){const r=findNode(id,c);if(r)return r;}
   return null;
 }
-
-function findParent(id,n){
-  if(!n)n=tree;
-  for(const c of n.children||[]){
-    if(c.id===id)return n;
-    const r=findParent(id,c);if(r)return r;
-  }
-  return null;
-}
-
-function deleteNode(id,n){
+function deleteNodeById(id,n){
   if(!n)n=tree;
   const idx=n.children.findIndex(c=>c.id===id);
   if(idx!==-1){n.children.splice(idx,1);return true;}
-  for(const c of n.children){if(deleteNode(id,c))return true;}
+  for(const c of n.children){if(deleteNodeById(id,c))return true;}
   return false;
 }
 
@@ -252,7 +312,7 @@ wrap.addEventListener('mousedown',e=>{
   }
 });
 window.addEventListener('mousemove',e=>{if(!panning)return;vx+=e.clientX-lmx;vy+=e.clientY-lmy;lmx=e.clientX;lmy=e.clientY;applyT();});
-window.addEventListener('mouseup',()=>panning=false);
+window.addEventListener('mouseup',()=>{panning=false;});
 wrap.addEventListener('wheel',e=>{
   e.preventDefault();
   const zf=e.deltaY<0?1.08:.93;
@@ -265,7 +325,7 @@ function applyT(){
   cvs.style.transform=`translate(${vx}px,${vy}px) scale(${vs})`;
   document.getElementById('zoomVal').textContent=Math.round(vs*100)+'%';
 }
-function resetView(){vx=window.innerWidth/2;vy=(window.innerHeight+52)/2;vs=1;applyT();}
+function resetView(){vx=window.innerWidth/2;vy=window.innerHeight/2;vs=1;applyT();}
 
 // ── BG PARTICLES ──────────────────────────────────────────────
 const bc=document.getElementById('bg-canvas'),bx=bc.getContext('2d');
@@ -278,18 +338,63 @@ const pts=Array.from({length:55},()=>({x:Math.random()*window.innerWidth,y:Math.
   requestAnimationFrame(db);
 })();
 
-// ── DEPTH COLORS ──────────────────────────────────────────────
+// ── NODE DRAGGING ─────────────────────────────────────────────
+let draggingNodeId=null,dragOffX=0,dragOffY=0;
+
+function startNodeDrag(e,nodeId){
+  // Only drag on direct mousedown on branch-wrap, not on buttons
+  if(e.target.closest('.na')||e.target.closest('.node-actions'))return;
+  e.stopPropagation();
+  e.preventDefault();
+  draggingNodeId=nodeId;
+  const node=findNode(nodeId);
+  // Convert mouse canvas coords
+  const canvasPos=screenToCanvas(e.clientX,e.clientY);
+  dragOffX=canvasPos.x-node.x;
+  dragOffY=canvasPos.y-node.y;
+  const el=cvs.querySelector(`.node[data-id="${nodeId}"]`);
+  if(el)el.classList.add('dragging');
+  panning=false;
+}
+
+function screenToCanvas(sx,sy){
+  const r=wrap.getBoundingClientRect();
+  return{x:(sx-r.left-vx)/vs, y:(sy-r.top-vy)/vs};
+}
+
+window.addEventListener('mousemove',e=>{
+  if(!draggingNodeId)return;
+  const node=findNode(draggingNodeId);
+  if(!node)return;
+  const cp=screenToCanvas(e.clientX,e.clientY);
+  node.x=cp.x-dragOffX;
+  node.y=cp.y-dragOffY;
+  // Update node element position
+  const el=cvs.querySelector(`.node[data-id="${draggingNodeId}"]`);
+  if(el){el.style.left=node.x+'px';el.style.top=node.y+'px';}
+  // Redraw lines only (fast)
+  redrawLines();
+});
+
+window.addEventListener('mouseup',e=>{
+  if(!draggingNodeId)return;
+  const el=cvs.querySelector(`.node[data-id="${draggingNodeId}"]`);
+  if(el)el.classList.remove('dragging');
+  draggingNodeId=null;
+  saveData();
+});
+
+// ── RENDER ────────────────────────────────────────────────────
 const DC=['rgba(200,240,78,','rgba(61,158,255,','rgba(180,100,255,','rgba(255,185,48,','rgba(61,255,180,','rgba(255,79,94,'];
 function dc(d){return DC[Math.min(d,DC.length-1)];}
 
-// ── RENDER ────────────────────────────────────────────────────
 function render(){
   cvs.querySelectorAll('.node').forEach(n=>n.remove());
   svg.innerHTML='';
-  renderNode(tree,null,0);
+  renderNode(tree,0);
 }
 
-function renderNode(node,parent,depth){
+function renderNode(node,depth){
   const el=document.createElement('div');
   el.className='node';
   el.style.left=node.x+'px';
@@ -305,9 +410,9 @@ function renderNode(node,parent,depth){
     el.querySelector('.root-node').addEventListener('click',e=>{e.stopPropagation();openModal(node);});
   } else {
     const d=Math.min(depth,5);
-    const isImg=node.type==='image'&&node.body&&(node.body.startsWith('http')||node.body.startsWith('/'));
-    el.innerHTML=`<div class="branch-wrap">
-      <div class="branch-node depth-${d}">
+    const isImg=node.type==='image'&&node.body&&node.body.length>10;
+    el.innerHTML=`<div class="branch-wrap depth-${d}">
+      <div class="branch-node">
         ${isImg?`<img class="b-img" src="${eh(node.body)}" alt="" onerror="this.style.display='none'"/>` :''}
         <div class="b-type t-${node.type}">${node.type}</div>
         <div class="b-label">${eh(node.label)}</div>
@@ -320,21 +425,46 @@ function renderNode(node,parent,depth){
         </div>
       </div>
     </div>`;
+    // Attach drag
+    el.querySelector('.branch-wrap').addEventListener('mousedown',e=>startNodeDrag(e,node.id));
   }
 
   cvs.appendChild(el);
 
-  // Draw lines to children + recurse
   (node.children||[]).forEach(child=>{
-    drawCurve(node.x,node.y,child.x,child.y,dc(depth)+'0.22)',depth===0?1.5:1);
-    renderNode(child,node,depth+1);
+    const opacity = depth===0 ? '0.55)' : '0.3)';
+    const width = depth===0 ? 1.5 : 1;
+    drawCurve(node.x,node.y,child.x,child.y,dc(depth)+opacity,width,depth===0);
+    renderNode(child,depth+1);
   });
 }
 
-function drawCurve(x1,y1,x2,y2,stroke,w){
+function redrawLines(){
+  svg.innerHTML='';
+  drawLinesForNode(tree,0);
+}
+
+function drawLinesForNode(node,depth){
+  (node.children||[]).forEach(child=>{
+    const opacity = depth===0 ? '0.55)' : '0.3)';
+    const width = depth===0 ? 1.5 : 1;
+    drawCurve(node.x,node.y,child.x,child.y,dc(depth)+opacity,width,depth===0);
+    drawLinesForNode(child,depth+1);
+  });
+}
+
+function drawCurve(x1,y1,x2,y2,stroke,w,straight){
   const path=document.createElementNS('http://www.w3.org/2000/svg','path');
-  const cx1=x1+(x2-x1)*0.5,cy1=y1,cx2=x1+(x2-x1)*0.5,cy2=y2;
-  path.setAttribute('d',`M${x1} ${y1} C${cx1} ${cy1} ${cx2} ${cy2} ${x2} ${y2}`);
+  const ox=5000, oy=5000;
+  const ax1=x1+ox, ay1=y1+oy, ax2=x2+ox, ay2=y2+oy;
+  let d;
+  if(straight){
+    d=`M${ax1} ${ay1} L${ax2} ${ay2}`;
+  } else {
+    const cx1=ax1+(ax2-ax1)*.5, cy1=ay1, cx2=ax1+(ax2-ax1)*.5, cy2=ay2;
+    d=`M${ax1} ${ay1} C${cx1} ${cy1} ${cx2} ${cy2} ${ax2} ${ay2}`;
+  }
+  path.setAttribute('d',d);
   path.setAttribute('stroke',stroke);
   path.setAttribute('stroke-width',w);
   path.setAttribute('fill','none');
@@ -344,47 +474,162 @@ function drawCurve(x1,y1,x2,y2,stroke,w){
 
 // ── CHILD PLACEMENT ───────────────────────────────────────────
 function calcChildPos(parentNode){
-  const children=parentNode.children;
-  const n=children.length;
-  // Direction from root
+  const n=parentNode.children.length;
   const baseAngle=parentNode.type==='root'?0:Math.atan2(parentNode.y,parentNode.x);
   const dist=parentNode.type==='root'?270:175;
-  // Fan out children around the outward direction
   const fanSpread=d2r(Math.min(70,Math.max(25,n*22)));
-  const newAngle=baseAngle - fanSpread/2 + (n===0?0:fanSpread);
-  return{
-    x:parentNode.x+Math.cos(newAngle)*dist,
-    y:parentNode.y+Math.sin(newAngle)*dist
-  };
+  const newAngle=baseAngle-fanSpread/2+(n===0?0:fanSpread);
+  return{x:parentNode.x+Math.cos(newAngle)*dist,y:parentNode.y+Math.sin(newAngle)*dist};
 }
+
+// ── SEARCH ────────────────────────────────────────────────────
+let searchQuery='';
+
+function collectAll(node,path,results){
+  if(!path)path=[];
+  if(!results)results=[];
+  if(node.type!=='root'){
+    results.push({node,path:[...path]});
+  }
+  (node.children||[]).forEach(c=>collectAll(c,[...path,node.label],results));
+  return results;
+}
+
+function doSearch(q){
+  searchQuery=q.trim().toLowerCase();
+  const resultsEl=document.getElementById('searchResults');
+  const countEl=document.getElementById('searchCount');
+
+  // Clear highlights
+  cvs.querySelectorAll('.node').forEach(n=>{n.classList.remove('search-match','search-dim');});
+
+  if(!searchQuery){
+    resultsEl.classList.remove('open');
+    countEl.style.display='none';
+    return;
+  }
+
+  const all=collectAll(tree);
+  const matches=all.filter(({node})=>
+    node.label.toLowerCase().includes(searchQuery)||
+    (node.body||'').toLowerCase().includes(searchQuery)||
+    node.type.toLowerCase().includes(searchQuery)
+  );
+
+  // Highlight on canvas
+  const matchIds=new Set(matches.map(m=>m.node.id));
+  cvs.querySelectorAll('.node').forEach(el=>{
+    if(!el.dataset.id) return;
+    if(matchIds.has(el.dataset.id)) el.classList.add('search-match');
+    else el.classList.add('search-dim');
+  });
+
+  countEl.textContent=matches.length;
+  countEl.style.display=matches.length>0?'':'none';
+
+  // Dropdown
+  if(!matches.length){
+    resultsEl.innerHTML=`<div style="padding:14px;text-align:center;font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);">No results</div>`;
+    resultsEl.classList.add('open');
+    return;
+  }
+
+  resultsEl.innerHTML=matches.slice(0,12).map(({node,path})=>`
+    <div class="sr-item" onclick="focusNode('${node.id}')">
+      <div class="sr-label"><span class="sr-type t-${node.type}">${node.type}</span>${eh(node.label)}</div>
+      ${path.length?`<div class="sr-path">${path.filter(p=>p!=='VIPRA').join(' → ')}</div>`:''}
+    </div>`).join('');
+  resultsEl.classList.add('open');
+}
+
+function focusNode(id){
+  const node=findNode(id);
+  if(!node)return;
+  // Pan and zoom to center on node
+  const rect=wrap.getBoundingClientRect();
+  const cx=rect.width/2, cy=rect.height/2;
+  vx=cx-node.x*vs;
+  vy=cy-node.y*vs;
+  applyT();
+  // Flash highlight
+  const el=cvs.querySelector(`.node[data-id="${id}"]`);
+  if(el){
+    el.classList.add('search-match');
+    setTimeout(()=>el.classList.remove('search-match'),2000);
+  }
+  clearSearch();
+}
+
+function clearSearch(){
+  document.getElementById('searchInput').value='';
+  document.getElementById('searchResults').classList.remove('open');
+  document.getElementById('searchCount').style.display='none';
+  cvs.querySelectorAll('.node').forEach(n=>n.classList.remove('search-match','search-dim'));
+  searchQuery='';
+}
+
+document.getElementById('searchInput').addEventListener('input',e=>doSearch(e.target.value));
+document.getElementById('searchInput').addEventListener('keydown',e=>{if(e.key==='Escape')clearSearch();});
+document.addEventListener('click',e=>{
+  if(!e.target.closest('#searchWrap'))clearSearch();
+});
+
+// ── IMPORT / EXPORT ───────────────────────────────────────────
+function exportData(){
+  const b=new Blob([JSON.stringify(tree,null,2)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='vipra-mindmap.json';a.click();
+  showToast('Exported','ok');
+}
+
+document.getElementById('importPicker').addEventListener('change',function(){
+  const file=this.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=function(e){
+    try{
+      const imported=JSON.parse(e.target.result);
+      if(!imported.id||!imported.children)throw new Error('Invalid');
+      if(!confirm('Replace current map with imported data?'))return;
+      tree=imported;
+      saveData();render();
+      showToast('Map imported','ok');
+    }catch{showToast('Invalid file','');}
+  };
+  reader.readAsText(file);
+  this.value='';
+});
 
 // ── MODAL ─────────────────────────────────────────────────────
 function openModal(parentNode){
-  editingId=null; selectedParentId=parentNode.id;
+  editingId=null;selectedParentId=parentNode.id;
   document.getElementById('modalTitle').textContent='ADD NODE';
-  document.getElementById('modalCtx').textContent=
-    'Child of: '+(parentNode.type==='root'?'VIPRA':parentNode.label);
+  document.getElementById('modalCtx').textContent='Child of: '+(parentNode.type==='root'?'VIPRA':parentNode.label);
   document.getElementById('mLabel').value='';
   document.getElementById('mBody').value='';
-  setTypeRaw('idea');
+  resetImageField();setTypeRaw('idea');
   document.getElementById('overlay').classList.add('open');
   setTimeout(()=>document.getElementById('mLabel').focus(),150);
 }
 
 function openModalById(id,e){
-  e.stopPropagation();
-  const node=findNode(id);if(node)openModal(node);
+  e.stopPropagation();const node=findNode(id);if(node)openModal(node);
 }
 
 function openEditById(id,e){
   e.stopPropagation();
   const node=findNode(id);if(!node)return;
-  editingId=id; selectedParentId=null;
+  editingId=id;selectedParentId=null;
   document.getElementById('modalTitle').textContent='EDIT NODE';
   document.getElementById('modalCtx').textContent='Editing: '+node.label;
   document.getElementById('mLabel').value=node.label;
   document.getElementById('mBody').value=node.body||'';
-  setTypeRaw(node.type);
+  resetImageField();setTypeRaw(node.type);
+  if(node.type==='image'&&node.body){
+    pendingImageData=node.body;
+    document.getElementById('imgPreviewEl').src=node.body;
+    document.getElementById('imgPreview').style.display='block';
+    document.getElementById('imgPlaceholder').style.display='none';
+    document.getElementById('imgDropZone').style.borderColor='var(--accent)';
+  }
   document.getElementById('overlay').classList.add('open');
   setTimeout(()=>document.getElementById('mLabel').focus(),150);
 }
@@ -393,60 +638,92 @@ function doDelete(id,e){
   e.stopPropagation();
   const node=findNode(id);
   if((node?.children||[]).length>0&&!confirm(`Delete "${node.label}" and all its children?`))return;
-  deleteNode(id);saveData();render();showToast('Removed','');
+  deleteNodeById(id);saveData();render();showToast('Removed','');
 }
 
-function closeModal(){document.getElementById('overlay').classList.remove('open');editingId=null;}
+function closeModal(){document.getElementById('overlay').classList.remove('open');editingId=null;resetImageField();}
 
 function setType(t,el){
   activeType=t;
   document.querySelectorAll('.tp').forEach(p=>p.classList.remove('active'));
   el.classList.add('active');
-  const ph={note:'Write your note...',image:'Paste image URL...',link:'https://...',research:'Research findings...',idea:'Describe the idea...',task:'Task details...'};
-  const lb={image:'Image URL',link:'URL'};
-  document.getElementById('mBody').placeholder=ph[t]||'Details...';
-  document.getElementById('mBodyLbl').textContent=lb[t]||'Notes';
+  const isImg=t==='image';
+  document.getElementById('bodyField').style.display=isImg?'none':'';
+  document.getElementById('imageField').style.display=isImg?'':'none';
+  if(!isImg){
+    const ph={note:'Write your note...',link:'https://...',research:'Research findings...',idea:'Describe the idea...',task:'Task details...'};
+    document.getElementById('mBody').placeholder=ph[t]||'Details...';
+    document.getElementById('mBodyLbl').textContent=t==='link'?'URL':'Notes';
+  }
 }
 
 function setTypeRaw(t){
   activeType=t;
   document.querySelectorAll('.tp').forEach(p=>p.classList.toggle('active',p.textContent.toLowerCase()===t));
+  const isImg=t==='image';
+  document.getElementById('bodyField').style.display=isImg?'none':'';
+  document.getElementById('imageField').style.display=isImg?'':'none';
+}
+
+document.getElementById('imgFilePicker').addEventListener('change',function(){
+  const file=this.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=function(e){
+    pendingImageData=e.target.result;
+    document.getElementById('imgPreviewEl').src=pendingImageData;
+    document.getElementById('imgPreview').style.display='block';
+    document.getElementById('imgPlaceholder').style.display='none';
+    document.getElementById('imgDropZone').style.borderColor='var(--accent)';
+  };
+  reader.readAsDataURL(file);
+});
+
+function resetImageField(){
+  pendingImageData=null;
+  document.getElementById('imgFilePicker').value='';
+  document.getElementById('imgPreview').style.display='none';
+  document.getElementById('imgPlaceholder').style.display='block';
+  document.getElementById('imgDropZone').style.borderColor='';
+  document.getElementById('imgPreviewEl').src='';
 }
 
 function saveNode(){
   const label=document.getElementById('mLabel').value.trim();
   if(!label){showToast('Add a label','');return;}
-  const body=document.getElementById('mBody').value.trim();
+  let body=activeType==='image'?(pendingImageData||''):document.getElementById('mBody').value.trim();
+  if(activeType==='image'&&!body){showToast('Choose an image','');return;}
   if(editingId){
     const node=findNode(editingId);
-    if(node){node.label=label;node.body=body;node.type=activeType;}
+    if(node){
+      node.label=label;node.type=activeType;
+      if(activeType==='image'){if(pendingImageData)node.body=pendingImageData;}
+      else{node.body=body;}
+    }
     saveData();closeModal();render();showToast('Updated','ok');return;
   }
   const parent=findNode(selectedParentId);if(!parent)return;
   const pos=calcChildPos(parent);
   const nn=makeNode(label,activeType,pos.x,pos.y);
-  nn.body=body;
-  parent.children.push(nn);
+  nn.body=body;parent.children.push(nn);
   saveData();closeModal();render();showToast('Node added','ok');
 }
 
-function exportData(){
-  const b=new Blob([JSON.stringify(tree,null,2)],{type:'application/json'});
-  const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='vipra-mindmap.json';a.click();
-  showToast('Exported','ok');
-}
-
+// ── UTILS ─────────────────────────────────────────────────────
 let tt;
 function showToast(msg,cls){
   const t=document.getElementById('toast');t.textContent=msg;t.className='toast show'+(cls?' '+cls:'');
   clearTimeout(tt);tt=setTimeout(()=>t.className='toast',2500);
 }
-
 function eh(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 
 document.getElementById('overlay').addEventListener('click',e=>{if(e.target===e.currentTarget)closeModal();});
-document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();if((e.metaKey||e.ctrlKey)&&e.key==='Enter'&&document.getElementById('overlay').classList.contains('open'))saveNode();});
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'){closeModal();clearSearch();}
+  if((e.metaKey||e.ctrlKey)&&e.key==='Enter'&&document.getElementById('overlay').classList.contains('open'))saveNode();
+  if((e.metaKey||e.ctrlKey)&&e.key==='f'){e.preventDefault();document.getElementById('searchInput').focus();}
+});
 
+// ── INIT ──────────────────────────────────────────────────────
 loadData();resetView();render();
 </script>
 </body>
